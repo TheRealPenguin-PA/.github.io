@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Clicker Game</title>
+    <!-- Tailwind CSS CDN for easy styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background for the body */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #e2e8f0; /* Light text color */
+            overflow: hidden; /* Prevent body scroll when overlay is active */
+        }
+        /* Custom styles for the top message box */
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4a5568;
+            color: #cbd5e0;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none; /* Allows clicks to pass through */
+        }
+        #messageBox.show {
+            display: block;
+            opacity: 1;
+        }
+        /* Animation for pulse effect on border */
+        @keyframes pulseBorder {
+            0% { border-color: #8B5CF6; } /* purple-600 */
+            50% { border-color: #EC4899; } /* pink-500 */
+            100% { border-color: #8B5CF6; }
+        }
+        .animate-pulse-border {
+            animation: pulseBorder 3s infinite alternate;
+        }
+        /* Style for disabled button */
+        #clickButton:disabled {
+            background-color: #4b5563; /* Tailwind gray-600 */
+            cursor: not-allowed;
+            transform: none; /* Remove scale effect when disabled */
+            box-shadow: none;
+            opacity: 0.7;
+        }
+
+        /* Full-screen warning overlay styles */
+        #warningOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); /* Dark semi-transparent background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000; /* Higher than other elements */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #warningOverlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Login/Auth Overlay */
+        #authOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000; /* Highest z-index */
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #authOverlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .auth-container {
+            background-color: #2d3748; /* gray-800 */
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            border: 2px solid #6b46c1; /* purple-700 */
+        }
+        .auth-input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #4a5568; /* gray-600 */
+            background-color: #2c3140; /* Slightly lighter than container */
+            color: #e2e8f0;
+            font-size: 1rem;
+        }
+        .auth-input:focus {
+            outline: none;
+            border-color: #8B5CF6; /* purple-600 */
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5); /* purple-600 with opacity */
+        }
+        .auth-button {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            transition: all 0.2s ease-in-out;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+        }
+        .auth-button.primary {
+            background-color: #4c51bf; /* indigo-700 */
+            color: white;
+        }
+        .auth-button.primary:hover {
+            background-color: #434190; /* indigo-800 */
+            transform: scale(1.02);
+        }
+        .auth-button.secondary {
+            background-color: #6b7280; /* gray-500 */
+            color: white;
+        }
+        .auth-button.secondary:hover {
+            background-color: #4b5563; /* gray-600 */
+            transform: scale(1.02);
+        }
+        /* Password container for show/hide */
+        .password-input-container {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #cbd5e0;
+            font-size: 0.875rem; /* text-sm */
+            user-select: none; /* Prevent text selection */
+        }
+    </style>
+</head>
+<body class="selection:bg-yellow-400 selection:text-yellow-900">
+    <!-- Message Box (for general game messages) -->
+    <div id="messageBox" class="rounded-lg"></div>
+
+    <!-- Full-screen Warning Overlay -->
+    <div id="warningOverlay" class="hidden">
+        <div class="bg-red-800 p-8 rounded-2xl shadow-2xl max-w-xl w-11/12 text-center border-4 border-red-500">
+            <h2 class="text-4xl font-extrabold mb-6 text-yellow-300">WARNING! Auto-Clicker Detected!</h2>
+            <p class="text-xl text-gray-200 mb-8" id="warningMessage"></p>
+            <button id="acceptWarningButton"
+                    class="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900
+                           text-white font-bold py-4 px-8 rounded-lg shadow-lg transform transition-all
+                           duration-200 ease-in-out hover:scale-105 active:scale-95 text-xl
+                           focus:outline-none focus:ring-4 focus:ring-red-300">
+                I accept that using an auto-clicker can get me banned.
+            </button>
+        </div>
+    </div>
+
+    <!-- Login/Authentication Overlay -->
+    <div id="authOverlay">
+        <div class="auth-container">
+            <h2 class="text-3xl font-extrabold mb-6 text-purple-300">Welcome to Super Clicker!</h2>
+            <p class="text-gray-300 mb-4">Sign up or Log in to save your progress!</p>
+            <input type="email" id="authEmail" placeholder="Email" class="auth-input">
+
+            <div class="password-input-container">
+                <input type="password" id="authPassword" placeholder="Password" class="auth-input mb-0">
+                <span class="password-toggle" id="togglePassword">Show</span>
+            </div>
+
+            <div class="password-input-container">
+                <input type="password" id="authVerifyPassword" placeholder="Verify Password" class="auth-input mb-0">
+                <span class="password-toggle" id="toggleVerifyPassword">Show</span>
+            </div>
+
+            <p id="authMessage" class="text-red-400 text-sm mb-4"></p>
+            <button id="signUpButton" class="auth-button primary">Sign Up</button>
+            <button id="signInButton" class="auth-button secondary">Sign In</button>
+            <button id="playAnonymouslyButton" class="auth-button secondary mt-4">Play Anonymously</button>
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div class="game-container bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-lg w-full text-center border-4 border-purple-600 animate-pulse-border">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-5xl font-extrabold text-yellow-400 drop-shadow-lg" id="scoreDisplay">Score: 0</h1>
+            <div id="authStatus" class="text-sm text-right">
+                <p class="text-gray-400">User: <span id="userIdDisplay" class="font-mono text-cyan-300 break-all">Loading...</span></p>
+                <button id="logoutButton" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded-md mt-2 text-xs hidden">Logout</button>
+            </div>
+        </div>
+
+
+        <!-- Main Click Button -->
+        <button id="clickButton"
+                class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700
+                       text-white font-bold py-6 px-12 rounded-full shadow-lg transform transition-all
+                       duration-200 ease-in-out hover:scale-105 active:scale-95 mb-10 text-3xl
+                       focus:outline-none focus:ring-4 focus:ring-blue-300">
+            Click Me!
+        </button>
+
+        <h2 class="text-3xl font-bold mb-6 text-purple-400">Upgrades</h2>
+
+        <!-- Upgrades Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Click Power Upgrade -->
+            <div class="upgrade-card bg-gray-700 p-6 rounded-xl shadow-lg border border-gray-600">
+                <h3 class="text-xl font-semibold mb-3 text-cyan-300">Click Power</h3>
+                <p class="text-gray-300 mb-4">Increase score per click.</p>
+                <button id="buyClickUpgrade"
+                        class="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700
+                               text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all
+                               duration-200 ease-in-out hover:scale-105 active:scale-95
+                               focus:outline-none focus:ring-4 focus:ring-green-300 text-lg">
+                    Buy (Cost: <span id="clickUpgradeCost">10</span>)
+                </button>
+                <p class="text-gray-400 mt-2 text-sm">Current Power: <span id="currentClickPower">1</span></p>
+            </div>
+
+            <!-- Auto Clicker Upgrade -->
+            <div class="upgrade-card bg-gray-700 p-6 rounded-xl shadow-lg border border-gray-600">
+                <h3 class="text-xl font-semibold mb-3 text-red-300">Auto Clicker</h3>
+                <p class="text-gray-300 mb-4">Automatically gain score over time.</p>
+                <button id="buyAutoClickUpgrade"
+                        class="w-full bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700
+                               text-white font-semibold py-3 px-6 rounded-lg shadow-md transition-all
+                               duration-200 ease-in-out hover:scale-105 active:scale-95
+                               focus:outline-none focus:ring-4 focus:ring-red-300 text-lg">
+                    Buy (Cost: <span id="autoClickUpgradeCost">100</span>)
+                </button>
+                <p class="text-gray-400 mt-2 text-sm">Current Auto Power: <span id="currentAutoClickPower">0</span></p>
+            </div>
+        </div>
+
+        <h2 class="text-3xl font-bold mt-10 mb-6 text-purple-400">Leaderboard</h2>
+        <div class="leaderboard-container bg-gray-700 p-6 rounded-xl shadow-lg border border-gray-600">
+            <p class="text-gray-400 mb-4 text-sm">Your User ID: <span id="leaderboardUserIdDisplay" class="font-mono text-cyan-300 break-all">Loading...</span></p>
+            <ul id="leaderboardList" class="text-left">
+                <li class="text-gray-300 text-lg mb-2"><span class="font-semibold text-yellow-300">Loading Leaderboard...</span></li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+                 createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Globals (Provided by Canvas Environment) ---
+        // This 'appId' is a unique identifier for your application within the Canvas environment.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-clicker-app-id';
+
+        // START OF MANUALLY EMBEDDED FIREBASE CONFIG
+        // This is your specific Firebase project configuration, directly embedded for troubleshooting.
+        // In most cases, __firebase_config is automatically provided by the environment.
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwa0WuE_-ZCsSQbwQy8wpaINC7LW9nv_w",
+            authDomain: "super-clicker-a9bfa.firebaseapp.com",
+            projectId: "super-clicker-a9bfa",
+            storageBucket: "super-clicker-a9bfa.firebasestorage.app",
+            messagingSenderId: "921790556246",
+            appId: "1:921790556246:web:b9101849f0dda043d233f7",
+            measurementId: "G-5RW97C33KZ"
+        };
+        // END OF MANUALLY EMBEDDED FIREBASE CONFIG
+
+        // The initialAuthToken is provided by the Canvas environment for specific sign-in flows.
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+
+        // --- Firebase Instances ---
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous_initializing'; // Default user ID until authenticated
+        let isAuthReady = false; // Flag to indicate if Firebase Auth is initialized and user state is known
+
+        // --- Game State Variables ---
+        let score = 0;
+        let clickPower = 1;
+        let autoClickPower = 0;
+        let autoClickIntervalTime = 1000;
+        let autoClickIntervalId = null;
+
+        // --- Upgrade Costs and Scaling ---
+        let clickUpgradeCost = 10;
+        let autoClickUpgradeCost = 100;
+        const clickCostMultiplier = 1.5;
+        const autoClickCostMultiplier = 2;
+
+        // --- Anti-Cheat Variables ---
+        let clickTimestamps = [];
+        const MAX_CLICKS_PER_WINDOW = 12;
+        const DETECTION_WINDOW_MS = 1000;
+        const FREEZE_DURATION_MS = 3000;
+
+        // Warning and Ban System
+        let cheatDetectionCount = 0;
+        const MAX_WARNINGS = 2;
+        let isBanned = false;
+
+        // --- DOM Elements ---
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const clickButton = document.getElementById('clickButton');
+        const buyClickUpgradeButton = document.getElementById('buyClickUpgrade');
+        const clickUpgradeCostDisplay = document.getElementById('clickUpgradeCost');
+        const currentClickPowerDisplay = document.getElementById('currentClickPower');
+        const buyAutoClickUpgradeButton = document.getElementById('buyAutoClickUpgrade');
+        const autoClickUpgradeCostDisplay = document.getElementById('autoClickUpgradeCost');
+        const currentAutoClickPowerDisplay = document.getElementById('currentAutoClickPower');
+        const messageBox = document.getElementById('messageBox');
+        const warningOverlay = document.getElementById('warningOverlay');
+        const warningMessage = document.getElementById('warningMessage');
+        const acceptWarningButton = document.getElementById('acceptWarningButton');
+        const leaderboardList = document.getElementById('leaderboardList');
+        const userIdDisplay = document.getElementById('userIdDisplay'); // For game container
+        const leaderboardUserIdDisplay = document.getElementById('leaderboardUserIdDisplay'); // For leaderboard section
+
+        // Auth UI elements
+        const authOverlay = document.getElementById('authOverlay');
+        const authEmailInput = document.getElementById('authEmail');
+        const authPasswordInput = document.getElementById('authPassword');
+        const authVerifyPasswordInput = document.getElementById('authVerifyPassword'); // New
+        const togglePassword = document.getElementById('togglePassword'); // New
+        const toggleVerifyPassword = document.getElementById('toggleVerifyPassword'); // New
+        const authMessage = document.getElementById('authMessage');
+        const signUpButton = document.getElementById('signUpButton');
+        const signInButton = document.getElementById('signInButton');
+        const playAnonymouslyButton = document.getElementById('playAnonymouslyButton');
+        const logoutButton = document.getElementById('logoutButton');
+
+        // --- Helper Function to show messages ---
+        function showMessage(message, duration = 3000) {
+            if (messageBox.timeoutId) {
+                clearTimeout(messageBox.timeoutId);
+            }
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            if (duration > 0) {
+                messageBox.timeoutId = setTimeout(() => {
+                    messageBox.classList.remove('show');
+                    messageBox.timeoutId = null;
+                }, duration);
+            }
+        }
+
+        // --- Firestore Leaderboard Functions ---
+
+        /**
+         * Saves the current player's score to the Firestore leaderboard.
+         * Only saves if score is greater than 0.
+         */
+        async function saveScoreToLeaderboard() {
+            if (!db || !userId || score <= 0) {
+                // console.log("Firebase: Not saving score - Firestore not initialized, no user, or score is zero.");
+                return;
+            }
+            try {
+                // Leaderboard collection path: /artifacts/{appId}/public/data/leaderboard
+                const leaderboardCollectionRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
+                const userDocRef = doc(leaderboardCollectionRef, userId);
+
+                await setDoc(userDocRef, {
+                    userId: userId,
+                    score: Math.floor(score), // Store integer score
+                    timestamp: Date.now() // Store latest update time
+                });
+                // console.log("Firebase: Score saved to leaderboard:", Math.floor(score));
+            } catch (error) {
+                console.error("Firebase: Error saving score to leaderboard:", error);
+            }
+        }
+
+        /**
+         * Fetches and displays the top scores from the Firestore leaderboard.
+         */
+        async function fetchLeaderboard() {
+            if (!db) {
+                console.log("Firebase: Firestore not initialized. Cannot fetch leaderboard.");
+                return;
+            }
+            try {
+                const leaderboardCollectionRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
+                // Query for top 10 scores, ordered by score descending
+                const q = query(leaderboardCollectionRef, orderBy("score", "desc"), limit(10));
+                const querySnapshot = await getDocs(q);
+
+                leaderboardList.innerHTML = ''; // Clear current list
+
+                if (querySnapshot.empty) {
+                    leaderboardList.innerHTML = '<li class="text-gray-400">No scores yet. Be the first!</li>';
+                } else {
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        const listItem = document.createElement('li');
+                        listItem.classList.add('text-gray-300', 'text-lg', 'mb-2', 'flex', 'justify-between', 'items-center');
+
+                        let name = data.userId;
+                        // Shorten long user IDs for display
+                        if (name === userId) {
+                            name = `<span class="font-semibold text-green-400">(You) ${name.substring(0, 8)}...</span>`; // Highlight current user
+                        } else {
+                            name = `<span class="font-semibold text-yellow-300">${name.substring(0, 8)}...</span>`;
+                        }
+
+                        listItem.innerHTML = `${name}: <span class="text-white">${Math.floor(data.score)}</span>`;
+                        leaderboardList.appendChild(listItem);
+                    });
+                }
+            } catch (error) {
+                console.error("Firebase: Error fetching leaderboard:", error);
+                leaderboardList.innerHTML = '<li class="text-red-400">Error loading leaderboard.</li>';
+            }
+        }
+
+
+        // --- Game State Saving/Loading ---
+        async function saveGameState() {
+            if (!db || !userId || !isAuthReady) {
+                // console.log("Firebase: Not saving game state - DB not ready or user not authenticated/identified.");
+                return;
+            }
+            try {
+                // Path: /artifacts/{appId}/users/{userId}/gameState/current
+                const gameStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/gameState/current`);
+                await setDoc(gameStateDocRef, {
+                    score: Math.floor(score),
+                    clickPower: clickPower,
+                    autoClickPower: autoClickPower,
+                    clickUpgradeCost: clickUpgradeCost,
+                    autoClickUpgradeCost: autoClickUpgradeCost,
+                    isBanned: isBanned, // Save ban status
+                    cheatDetectionCount: cheatDetectionCount, // Save cheat count
+                    lastSaved: Date.now()
+                });
+                console.log("Firebase: Game state saved for user:", userId);
+            } catch (error) {
+                console.error("Firebase: Error saving game state:", error);
+            }
+        }
+
+        async function loadGameState() {
+            if (!db || !userId || !isAuthReady) {
+                console.log("Firebase: Not loading game state - DB not ready or user not authenticated/identified.");
+                return;
+            }
+            try {
+                const gameStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/gameState/current`);
+                const docSnap = await getDoc(gameStateDocRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    score = data.score || 0;
+                    clickPower = data.clickPower || 1;
+                    autoClickPower = data.autoClickPower || 0;
+                    clickUpgradeCost = data.clickUpgradeCost || 10;
+                    autoClickUpgradeCost = data.autoClickUpgradeCost || 100;
+                    isBanned = data.isBanned || false; // Load ban status
+                    cheatDetectionCount = data.cheatDetectionCount || 0; // Load cheat count
+
+                    console.log("Firebase: Game state loaded for user:", userId, data);
+                    showMessage('Game progress loaded!', 2000);
+                } else {
+                    console.log("Firebase: No saved game state found for user. Starting fresh or continuing anonymous score.");
+                    // If no saved state, current in-memory game state persists
+                }
+                updateDisplay(); // Update UI after loading
+                if (autoClickPower > 0 && !autoClickIntervalId) {
+                    autoClickIntervalId = setInterval(autoClick, autoClickIntervalTime);
+                    console.log("Auto Clicker: Started automatically due to loaded state.");
+                }
+                // Apply ban status if loaded
+                if (isBanned) {
+                    applyBanState();
+                }
+            }
+             catch (error) {
+                console.error("Firebase: Error loading game state:", error);
+                showMessage('Error loading game progress.', 3000);
+            }
+        }
+
+        function applyBanState() {
+            isBanned = true;
+            clickButton.disabled = true;
+            clickButton.textContent = "Banned!";
+            buyClickUpgradeButton.disabled = true;
+            buyAutoClickUpgradeButton.disabled = true;
+            warningOverlay.classList.add('show'); // Show full-screen ban message
+            warningMessage.textContent = 'You have been permanently banned for repeated auto-clicker use! Your clicking privileges have been revoked.';
+            acceptWarningButton.textContent = "Understood";
+            acceptWarningButton.onclick = () => {
+                warningOverlay.classList.remove('show');
+            };
+            showMessage('You are banned!', 0); // Show permanent message at top
+        }
+
+        // --- Firebase Initialization and Auth ---
+        async function initializeFirebase() {
+            try {
+                // Initialize Firebase app with the embedded config
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Add onAuthStateChanged listener first
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = user.email || `Anonymous: ${userId.substring(0, 8)}...`;
+                        leaderboardUserIdDisplay.textContent = user.email || `Anonymous: ${userId.substring(0, 8)}...`;
+                        logoutButton.classList.remove('hidden'); // Show logout button
+                        authOverlay.classList.add('hidden'); // Hide auth overlay
+                        console.log("Firebase: User authenticated:", user.email || userId);
+
+                        isAuthReady = true; // Set auth ready flag
+                        await loadGameState(); // Load game state after authentication
+                        fetchLeaderboard(); // Fetch leaderboard after auth and state load
+                        setInterval(saveScoreToLeaderboard, 10000); // Start periodic save
+                        setInterval(fetchLeaderboard, 15000); // Start periodic fetch leaderboard
+                    } else {
+                        console.log("Firebase: No user authenticated. Displaying auth overlay.");
+                        userId = crypto.randomUUID(); // Temporary ID for anonymous play if not signed in
+                        userIdDisplay.textContent = `Anonymous: ${userId.substring(0, 8)}...`;
+                        leaderboardUserIdDisplay.textContent = `Anonymous: ${userId.substring(0, 8)}...`;
+                        logoutButton.classList.add('hidden'); // Hide logout button
+                        authOverlay.classList.remove('hidden'); // Show auth overlay for login/signup
+                        isAuthReady = true; // Still consider auth ready, even if anonymous
+                        fetchLeaderboard(); // Still fetch leaderboard even for anonymous users
+                    }
+                });
+
+                // Attempt initial sign-in with custom token ONLY (if provided by the environment).
+                // Do not sign in anonymously here; that's handled by handlePlayAnonymously.
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (e) {
+                        console.warn("Firebase: Custom token sign-in failed.", e);
+                        // If custom token fails, onAuthStateChanged will detect null user and show auth overlay
+                    }
+                } else {
+                    // If no custom token, onAuthStateChanged will detect no user and show auth overlay initially.
+                    console.log("Firebase: No initialAuthToken provided. Waiting for user input (login/signup/anonymous).");
+                }
+
+            } catch (error) {
+                console.error("Firebase: Error initializing Firebase or signing in:", error);
+                userIdDisplay.textContent = "Auth Error";
+                leaderboardUserIdDisplay.textContent = "Leaderboard Error";
+                authOverlay.classList.remove('hidden'); // Keep auth overlay if there's an error
+                authMessage.textContent = "Error initializing Firebase. Check console.";
+                isAuthReady = true; // Attempt to allow game to run if possible
+            }
+        }
+
+        // --- Authentication Functions ---
+        async function handleSignUp() {
+            const email = authEmailInput.value;
+            const password = authPasswordInput.value;
+            const verifyPassword = authVerifyPasswordInput.value; // New
+            authMessage.textContent = ''; // Clear previous messages
+
+            if (!email || !password || !verifyPassword) {
+                authMessage.textContent = 'Please enter email, password, and verify password.';
+                return;
+            }
+            if (password.length < 6) {
+                authMessage.textContent = 'Password must be at least 6 characters long.';
+                return;
+            }
+            if (password !== verifyPassword) { // New validation
+                authMessage.textContent = 'Passwords do not match.';
+                return;
+            }
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                showMessage('Account created successfully! Game progress will now be saved.', 3000);
+                // onAuthStateChanged listener will handle hiding overlay and loading game state
+            } catch (error) {
+                console.error("Firebase: Sign Up Error:", error);
+                authMessage.textContent = `Sign Up Failed: ${error.message}`;
+            }
+        }
+
+        async function handleSignIn() {
+            const email = authEmailInput.value;
+            const password = authPasswordInput.value;
+            authMessage.textContent = ''; // Clear previous messages
+            if (!email || !password) {
+                authMessage.textContent = 'Please enter both email and password.';
+                return;
+            }
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showMessage('Logged in successfully! Loading your game progress...', 3000);
+                // onAuthStateChanged listener will handle hiding overlay and loading game state
+            } catch (error) {
+                console.error("Firebase: Sign In Error:", error);
+                authMessage.textContent = `Login Failed: ${error.message}`;
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                // Reset game state to default for a fresh anonymous session
+                score = 0;
+                clickPower = 1;
+                autoClickPower = 0;
+                clickUpgradeCost = 10;
+                autoClickUpgradeCost = 100;
+                isBanned = false;
+                cheatDetectionCount = 0;
+                if (autoClickIntervalId) {
+                    clearInterval(autoClickIntervalId);
+                    autoClickIntervalId = null;
+                }
+                updateDisplay();
+                showMessage('Logged out. You can now play anonymously or log in again.', 3000);
+                // onAuthStateChanged will now detect null user and show auth overlay
+                clickButton.disabled = false; // Ensure button is re-enabled after logout
+                clickButton.textContent = "Click Me!"; // Reset button text
+                buyClickUpgradeButton.disabled = false;
+                buyAutoClickUpgradeButton.disabled = false;
+            } catch (error) {
+                console.error("Firebase: Logout Error:", error);
+                showMessage(`Logout Failed: ${error.message}`, 3000);
+            }
+        }
+
+        async function handlePlayAnonymously() {
+            try {
+                await signInAnonymously(auth); // Explicitly sign in anonymously
+                showMessage('Playing anonymously. Your progress will not be saved.', 3000);
+                // onAuthStateChanged will handle hiding overlay and loading game state
+            } catch (error) {
+                console.error("Firebase: Anonymous Sign In Error:", error);
+                authMessage.textContent = `Failed to play anonymously: ${error.message}`;
+            }
+        }
+
+        // --- Password Toggle Function ---
+        function togglePasswordVisibility(passwordInput, toggleSpan) {
+            if (passwordInput.type === "password") {
+                passwordInput.type = "text";
+                toggleSpan.textContent = "Hide";
+            } else {
+                passwordInput.type = "password";
+                toggleSpan.textContent = "Show";
+            }
+        }
+
+        // --- Game Logic Functions ---
+        function updateDisplay() {
+            scoreDisplay.textContent = `Score: ${Math.floor(score)}`;
+            clickUpgradeCostDisplay.textContent = Math.floor(clickUpgradeCost);
+            currentClickPowerDisplay.textContent = clickPower;
+            autoClickUpgradeCostDisplay.textContent = Math.floor(autoClickUpgradeCost);
+            currentAutoClickPowerDisplay.textContent = autoClickPower;
+        }
+
+        function handleClick() {
+            if (isBanned) {
+                showMessage('You are banned for using an auto-clicker!', 5000);
+                return;
+            }
+            const now = Date.now();
+            clickTimestamps.push(now);
+            clickTimestamps = clickTimestamps.filter(timestamp => now - timestamp < DETECTION_WINDOW_MS);
+
+            if (clickTimestamps.length > MAX_CLICKS_PER_WINDOW) {
+                cheatDetectionCount++;
+                // Save ban state to Firestore immediately
+                if (isAuthReady && userId && db) { // Ensure db is initialized before trying to save
+                    const gameStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/gameState/current`);
+                    setDoc(gameStateDocRef, { isBanned: isBanned, cheatDetectionCount: cheatDetectionCount }, { merge: true })
+                        .catch(e => console.error("Firebase: Error saving cheat state:", e));
+                }
+
+                messageBox.classList.remove('show');
+
+                if (cheatDetectionCount <= MAX_WARNINGS) {
+                    clickButton.disabled = true;
+                    warningOverlay.classList.add('show');
+                    warningMessage.textContent = `You have been warned ${cheatDetectionCount} out of ${MAX_WARNINGS} times. Repeated use will result in a permanent ban.`;
+                } else {
+                    applyBanState(); // Apply permanent ban
+                    // Also save the banned status to Firestore
+                    if (isAuthReady && userId && db) { // Ensure db is initialized before trying to save
+                        const gameStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/gameState/current`);
+                        setDoc(gameStateDocRef, { isBanned: true }, { merge: true })
+                            .catch(e => console.error("Firebase: Error saving ban state:", e));
+                    }
+                }
+                return;
+            }
+            score += clickPower;
+            updateDisplay();
+        }
+
+        function handleAcceptWarning() {
+            if (!isBanned) {
+                warningOverlay.classList.remove('show');
+                clickButton.disabled = false;
+                clickTimestamps = [];
+            } else {
+                warningOverlay.classList.remove('show');
+            }
+        }
+
+        function buyClickUpgrade() {
+            if (isBanned) {
+                showMessage('You cannot buy upgrades while banned.', 2000);
+                return;
+            }
+            if (score >= clickUpgradeCost) {
+                score -= clickUpgradeCost;
+                clickPower++;
+                clickUpgradeCost *= clickCostMultiplier;
+                showMessage('Click Power upgraded!');
+            } else {
+                showMessage('Not enough score for Click Power upgrade!', 2000);
+            }
+            updateDisplay();
+            saveGameState(); // Save state after purchase
+        }
+
+        function buyAutoClickUpgrade() {
+            if (isBanned) {
+                showMessage('You cannot buy upgrades while banned.', 2000);
+                return;
+            }
+            if (score >= autoClickUpgradeCost) {
+                score -= autoClickUpgradeCost;
+                autoClickPower++;
+                autoClickUpgradeCost *= autoClickCostMultiplier;
+                showMessage('Auto Clicker activated!', 2000);
+
+                if (autoClickIntervalId) {
+                    clearInterval(autoClickIntervalId);
+                }
+                autoClickIntervalId = setInterval(autoClick, autoClickIntervalTime);
+            } else {
+                showMessage('Not enough score for Auto Clicker upgrade!', 2000);
+            }
+            updateDisplay();
+            saveGameState(); // Save state after purchase
+        }
+
+        function autoClick() {
+            score += autoClickPower;
+            updateDisplay();
+        }
+
+        // --- Event Listeners ---
+        clickButton.addEventListener('click', handleClick);
+        buyClickUpgradeButton.addEventListener('click', buyClickUpgrade);
+        buyAutoClickUpgradeButton.addEventListener('click', buyAutoClickUpgrade);
+        acceptWarningButton.addEventListener('click', handleAcceptWarning);
+
+        // Auth listeners
+        signUpButton.addEventListener('click', handleSignUp);
+        signInButton.addEventListener('click', handleSignIn);
+        playAnonymouslyButton.addEventListener('click', handlePlayAnonymously);
+        logoutButton.addEventListener('click', handleLogout);
+
+        // Password toggle listeners
+        togglePassword.addEventListener('click', () => togglePasswordVisibility(authPasswordInput, togglePassword));
+        toggleVerifyPassword.addEventListener('click', () => togglePasswordVisibility(authVerifyPasswordInput, toggleVerifyPassword));
+
+        // Clear auth message on input change
+        authEmailInput.addEventListener('input', () => authMessage.textContent = '');
+        authPasswordInput.addEventListener('input', () => authMessage.textContent = '');
+        authVerifyPasswordInput.addEventListener('input', () => authMessage.textContent = ''); // New
+
+        // --- Initial Game Setup ---
+        window.onload = function() {
+            initializeFirebase();
+            updateDisplay();
+        };
+    </script>
+</body>
+</html>
